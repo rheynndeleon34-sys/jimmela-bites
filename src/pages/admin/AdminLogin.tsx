@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { Eye, EyeOff, Lock, User } from "lucide-react";
+import { auth } from "@/lib/firebase";
 import logo from "@/assets/jimmela_logo.jpg";
 
 const AdminLogin = () => {
@@ -16,16 +18,21 @@ const AdminLogin = () => {
     setError("");
     setLoading(true);
 
-    // Placeholder auth — will be replaced with Firebase
-    setTimeout(() => {
-      if (email && password) {
-        localStorage.setItem("jimmela_admin", "true");
-        navigate("/admin/dashboard");
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      navigate("/admin/dashboard");
+    } catch (err: any) {
+      const code = err?.code;
+      if (code === "auth/user-not-found" || code === "auth/wrong-password" || code === "auth/invalid-credential") {
+        setError("Invalid email or password.");
+      } else if (code === "auth/too-many-requests") {
+        setError("Too many attempts. Please try again later.");
       } else {
-        setError("Please enter your credentials.");
+        setError("Login failed. Please try again.");
       }
+    } finally {
       setLoading(false);
-    }, 800);
+    }
   };
 
   return (

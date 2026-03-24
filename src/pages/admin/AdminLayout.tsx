@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -8,7 +9,9 @@ import {
   LogOut,
   Menu,
   X,
+  Loader2,
 } from "lucide-react";
+import { auth } from "@/lib/firebase";
 import logo from "@/assets/jimmela_logo.jpg";
 
 const sidebarLinks = [
@@ -20,12 +23,31 @@ const sidebarLinks = [
 
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [checking, setChecking] = useState(true);
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    localStorage.removeItem("jimmela_admin");
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        navigate("/admin", { replace: true });
+      }
+      setChecking(false);
+    });
+    return unsub;
+  }, [navigate]);
+
+  const handleLogout = async () => {
+    await signOut(auth);
     navigate("/admin");
   };
+
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-muted flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-muted flex">
