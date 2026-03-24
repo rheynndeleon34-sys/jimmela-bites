@@ -41,7 +41,7 @@ const statusStyles: Record<string, string> = {
 };
 
 const AdminOrders = () => {
-  const { data: orders, loading } = useFirestoreCollection<Order>("orders", [orderBy("date", "desc")], fallbackOrders);
+  const { data: orders, loading, error } = useFirestoreCollection<Order>("orders", [orderBy("date", "desc")]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Order | null>(null);
@@ -100,7 +100,29 @@ const AdminOrders = () => {
             </tr>
           </thead>
           <tbody>
-            {orders.map((o) => (
+            {loading && (
+              <tr>
+                <td colSpan={7} className="px-5 py-8 text-center text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+                  Loading orders...
+                </td>
+              </tr>
+            )}
+            {error && !loading && (
+              <tr>
+                <td colSpan={7} className="px-5 py-4 text-center text-red-600">
+                  Error: {error}
+                </td>
+              </tr>
+            )}
+            {!loading && !error && orders.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-5 py-8 text-center text-muted-foreground">
+                  No orders yet. Click "New Order" to get started.
+                </td>
+              </tr>
+            )}
+            {!loading && orders.map((o) => (
               <tr key={o.id} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
                 <td className="px-5 py-3.5 font-medium text-foreground">{o.id}</td>
                 <td className="px-5 py-3.5 text-foreground">{o.customer}</td>

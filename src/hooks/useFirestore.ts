@@ -2,8 +2,6 @@ import { useState, useEffect } from "react";
 import {
   collection,
   query,
-  orderBy,
-  limit,
   onSnapshot,
   type QueryConstraint,
 } from "firebase/firestore";
@@ -14,25 +12,46 @@ export function useFirestoreCollection<T>(
   constraints: QueryConstraint[] = [],
   fallback: T[] = []
 ) {
-  const [data, setData] = useState<T[]>(fallback);
+  const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, collectionName), ...constraints);
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as T));
-        setData(docs.length > 0 ? docs : fallback);
-        setLoading(false);
-      },
-      () => {
-        setData(fallback);
-        setLoading(false);
-      }
-    );
-    return unsub;
-  }, [collectionName]);
+    setLoading(true);
+    setError(null);
 
-  return { data, loading };
+    try {
+      const q = query(collection(db, collectionName), ...constraints);
+      const unsub = onSnapshot(
+        q,
+        (snap) => {
+          const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as T));
+          console.log(
+            `[Firestore] ${collectionName} loaded:`,
+            docs.length,
+            "items"
+          );
+          setData(docs);
+          setLoading(false);
+          setError(null);
+        },
+        (err) => {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          console.error(`[Firestore Error] ${collectionName}:`, errorMessage);
+          setError(errorMessage);
+          setData([]);
+          setLoading(false);
+        }
+      );
+      return unsub;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error(`[Firestore Error] ${collectionName}:`, errorMessage);
+      setError(errorMessage);
+      setData([]);
+      setLoading(false);
+    }
+  }, [collectionName, JSON.stringify(constraints)]);
+
+  return { data, loading, error };
 }

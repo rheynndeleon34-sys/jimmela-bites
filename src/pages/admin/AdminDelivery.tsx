@@ -31,7 +31,7 @@ const statusStyles: Record<string, string> = {
 };
 
 const AdminDelivery = () => {
-  const { data: deliveries, loading } = useFirestoreCollection<Delivery>("deliveries", [], fallbackDeliveries);
+  const { data: deliveries, loading, error } = useFirestoreCollection<Delivery>("deliveries", []);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Delivery | null>(null);
@@ -77,7 +77,23 @@ const AdminDelivery = () => {
       </div>
 
       <div className="grid gap-4">
-        {deliveries.map((d) => (
+        {loading && (
+          <div className="bg-card rounded-xl border border-border shadow-sm p-8 text-center text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+            Loading deliveries...
+          </div>
+        )}
+        {error && !loading && (
+          <div className="bg-card rounded-xl border border-border shadow-sm p-8 text-center text-red-600">
+            Error: {error}
+          </div>
+        )}
+        {!loading && !error && deliveries.length === 0 && (
+          <div className="bg-card rounded-xl border border-border shadow-sm p-8 text-center text-muted-foreground">
+            No deliveries scheduled. Click "Schedule Delivery" to create one.
+          </div>
+        )}
+        {!loading && deliveries.map((d) => (
           <div
             key={d.id}
             className="bg-card rounded-xl border border-border shadow-sm p-5 hover:shadow-md transition-shadow"

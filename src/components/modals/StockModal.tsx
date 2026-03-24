@@ -59,6 +59,10 @@ export const StockModal = ({
         unit: "packs",
       });
     }
+    // Clear any previous errors when modal opens/closes
+    if (isOpen && !editItem) {
+      // Clear form for new entry
+    }
   }, [editItem, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -96,32 +100,51 @@ export const StockModal = ({
 
     try {
       if (editItem) {
-        await update(editItem.id, {
+        const success = await update(editItem.id, {
           ...formData,
           status,
         });
-        toast({
-          title: "Success",
-          description: "Stock updated successfully",
-        });
+        if (success) {
+          toast({
+            title: "Success",
+            description: "Stock updated successfully",
+          });
+          onOpenChange(false);
+        } else {
+          toast({
+            title: "Error",
+            description: error || "Failed to update stock",
+            variant: "destructive",
+          });
+        }
       } else {
         const id = await generateAutoNumber("stock", "STO");
-        await add({
+        const docId = await add({
           id,
           ...formData,
           status,
         } as Omit<StockItem, "id">);
-        toast({
-          title: "Success",
-          description: `Stock added successfully (${id})`,
-        });
+        if (docId) {
+          toast({
+            title: "Success",
+            description: `Stock added successfully (${id})`,
+          });
+          onOpenChange(false);
+        } else {
+          toast({
+            title: "Error",
+            description: error || "Failed to add stock",
+            variant: "destructive",
+          });
+        }
       }
       onSuccess();
-      onOpenChange(false);
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Unknown error";
+      console.error("Stock form error:", errorMsg);
       toast({
         title: "Error",
-        description: error || "Failed to save stock",
+        description: error || errorMsg || "Failed to save stock",
         variant: "destructive",
       });
     }

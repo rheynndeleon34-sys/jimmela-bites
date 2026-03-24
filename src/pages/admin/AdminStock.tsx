@@ -33,7 +33,7 @@ const statusStyles: Record<string, string> = {
 };
 
 const AdminStock = () => {
-  const { data: stockItems, loading } = useFirestoreCollection<StockItem>("stock", [], fallbackStock);
+  const { data: stockItems, loading, error } = useFirestoreCollection<StockItem>("stock", []);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<StockItem | null>(null);
@@ -101,7 +101,29 @@ const AdminStock = () => {
             </tr>
           </thead>
           <tbody>
-            {stockItems.map((s) => (
+            {loading && (
+              <tr>
+                <td colSpan={5} className="px-5 py-8 text-center text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+                  Loading stock data...
+                </td>
+              </tr>
+            )}
+            {error && !loading && (
+              <tr>
+                <td colSpan={5} className="px-5 py-4 text-center text-red-600">
+                  Error: {error}
+                </td>
+              </tr>
+            )}
+            {!loading && !error && stockItems.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-5 py-8 text-center text-muted-foreground">
+                  No stock items yet. Click "Add Stock" to get started.
+                </td>
+              </tr>
+            )}
+            {!loading && stockItems.map((s) => (
               <tr key={s.id} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
                 <td className="px-5 py-3.5 font-medium text-foreground">{s.product}</td>
                 <td className="px-5 py-3.5 text-muted-foreground font-mono text-xs hidden sm:table-cell">{s.sku}</td>
