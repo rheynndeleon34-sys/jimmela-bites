@@ -11,6 +11,8 @@ import AdminDashboard from "./pages/admin/AdminDashboard.tsx";
 import AdminOrders from "./pages/admin/AdminOrders.tsx";
 import AdminStock from "./pages/admin/AdminStock.tsx";
 import AdminDelivery from "./pages/admin/AdminDelivery.tsx";
+import AdminAnalytics from "./pages/admin/AdminAnalytics.tsx";
+import AdminFinancial from "./pages/admin/AdminFinancial.tsx";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +32,8 @@ const App = () => (
             <Route path="/admin/orders" element={<AdminOrders />} />
             <Route path="/admin/stock" element={<AdminStock />} />
             <Route path="/admin/delivery" element={<AdminDelivery />} />
+            <Route path="/admin/analytics" element={<AdminAnalytics />} />
+            <Route path="/admin/financial" element={<AdminFinancial />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

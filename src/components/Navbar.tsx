@@ -19,7 +19,7 @@ const Navbar = () => {
         <a href="#home" className="flex items-center gap-2.5">
           <img src={logo} alt="Jimmela Food Products" className="h-10 w-10 lg:h-12 lg:w-12 rounded-full object-cover" />
           <span className="font-display text-lg lg:text-xl font-bold text-foreground tracking-tight">
-            Jimmela<span className="text-primary"> Food</span>
+            Jimmela<span className="text-primary"> Food Products</span>
           </span>
         </a>
 

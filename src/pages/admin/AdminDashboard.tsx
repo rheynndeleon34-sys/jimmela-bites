@@ -1,5 +1,6 @@
 import { Package, ShoppingCart, Truck, TrendingUp, Loader2 } from "lucide-react";
 import { useFirestoreCollection } from "@/hooks/useFirestore";
+import { LowStockAlerts } from "@/components/admin/LowStockAlerts";
 import { orderBy, limit } from "firebase/firestore";
 
 interface Order {
@@ -65,6 +66,9 @@ const AdminDashboard = () => {
 
   return (
     <div className="space-y-6">
+      {/* Low Stock Alerts */}
+      <LowStockAlerts />
+
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {stats.map((stat) => (

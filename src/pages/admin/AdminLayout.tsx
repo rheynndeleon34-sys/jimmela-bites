@@ -10,6 +10,8 @@ import {
   Menu,
   X,
   Loader2,
+  BarChart3,
+  DollarSign,
 } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import logo from "@/assets/jimmela_logo.jpg";
@@ -19,6 +21,8 @@ const sidebarLinks = [
   { label: "Orders", icon: ShoppingCart, to: "/admin/orders" },
   { label: "Stock", icon: Package, to: "/admin/stock" },
   { label: "Delivery", icon: Truck, to: "/admin/delivery" },
+  { label: "Analytics", icon: BarChart3, to: "/admin/analytics" },
+  { label: "Financial", icon: DollarSign, to: "/admin/financial" },
 ];
 
 const AdminLayout = () => {
