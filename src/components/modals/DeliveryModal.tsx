@@ -67,7 +67,31 @@ export const DeliveryModal = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validation
+    // When editing, only validate status
+    if (editItem) {
+      try {
+        const success = await update(editItem.id, { status: formData.status });
+        if (success) {
+          toast({
+            title: "Success",
+            description: "Delivery status updated successfully",
+          });
+          onOpenChange(false);
+        }
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : "Failed to update delivery";
+        console.error("Delivery update error:", errorMsg);
+        toast({
+          title: "Error",
+          description: error || errorMsg,
+          variant: "destructive",
+        });
+      }
+      onSuccess();
+      return;
+    }
+
+    // Validation for new delivery
     if (!formData.driver.trim()) {
       toast({
         title: "Error",
@@ -105,29 +129,25 @@ export const DeliveryModal = ({
     }
 
     try {
-      if (editItem) {
-        await update(editItem.id, formData);
-        toast({
-          title: "Success",
-          description: "Delivery updated successfully",
-        });
-      } else {
-        const id = await generateAutoNumber("deliveries", "DEL");
-        await add({
-          id,
-          ...formData,
-        } as Omit<Delivery, "id">);
+      const id = await generateAutoNumber("deliveries", "DEL");
+      const docId = await add({
+        id,
+        ...formData,
+      } as Omit<Delivery, "id">);
+      if (docId) {
         toast({
           title: "Success",
           description: `Delivery scheduled successfully (${id})`,
         });
+        onOpenChange(false);
       }
       onSuccess();
-      onOpenChange(false);
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to save delivery";
+      console.error("Delivery save error:", errorMsg);
       toast({
         title: "Error",
-        description: error || "Failed to save delivery",
+        description: error || errorMsg,
         variant: "destructive",
       });
     }
@@ -143,6 +163,12 @@ export const DeliveryModal = ({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {editItem && (
+            <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-700">
+              ℹ️ Editing delivery: Only status can be changed
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="driver">Driver Name *</Label>
             <Input
@@ -152,6 +178,7 @@ export const DeliveryModal = ({
               onChange={(e) =>
                 setFormData({ ...formData, driver: e.target.value })
               }
+              disabled={!!editItem}
             />
           </div>
 
@@ -164,6 +191,7 @@ export const DeliveryModal = ({
               onChange={(e) =>
                 setFormData({ ...formData, destination: e.target.value })
               }
+              disabled={!!editItem}
             />
           </div>
 
@@ -176,6 +204,7 @@ export const DeliveryModal = ({
               onChange={(e) =>
                 setFormData({ ...formData, items: e.target.value })
               }
+              disabled={!!editItem}
             />
           </div>
 
@@ -203,6 +232,7 @@ export const DeliveryModal = ({
                 onChange={(e) =>
                   setFormData({ ...formData, eta: e.target.value })
                 }
+                disabled={!!editItem}
               />
             </div>
           </div>
@@ -217,8 +247,10 @@ export const DeliveryModal = ({
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Saving...
                 </>
+              ) : editItem ? (
+                "Update Status"
               ) : (
-                editItem ? "Update Delivery" : "Schedule Delivery"
+                "Schedule Delivery"
               )}
             </Button>
           </DialogFooter>

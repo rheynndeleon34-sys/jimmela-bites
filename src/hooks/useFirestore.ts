@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   collection,
   query,
@@ -15,19 +15,37 @@ export function useFirestoreCollection<T>(
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const constraintsRef = useRef<string>("");
 
   useEffect(() => {
     setLoading(true);
     setError(null);
 
+    // Track constraints to detect changes
+    const constraintsKey = JSON.stringify(
+      constraints.map((c) => JSON.stringify(c))
+    );
+
+    // Only re-subscribe if constraints actually changed
+    if (constraintsRef.current === constraintsKey) {
+      setLoading(false);
+      return;
+    }
+
+    constraintsRef.current = constraintsKey;
+
     try {
       const q = query(collection(db, collectionName), ...constraints);
+      console.log(
+        `[Firestore] Subscribing to ${collectionName} with ${constraints.length} constraints`
+      );
+      
       const unsub = onSnapshot(
         q,
         (snap) => {
           const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as T));
           console.log(
-            `[Firestore] ${collectionName} loaded:`,
+            `[Firestore] ${collectionName} updated:`,
             docs.length,
             "items"
           );
@@ -43,6 +61,7 @@ export function useFirestoreCollection<T>(
           setLoading(false);
         }
       );
+
       return unsub;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -51,7 +70,7 @@ export function useFirestoreCollection<T>(
       setData([]);
       setLoading(false);
     }
-  }, [collectionName, JSON.stringify(constraints)]);
+  }, [collectionName]);
 
   return { data, loading, error };
 }

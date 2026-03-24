@@ -147,6 +147,61 @@ export const OrderModal = ({
     });
   };
 
+  const checkStockAvailability = (): boolean => {
+    for (const item of formData.items) {
+      const stock = stockItems.find((s) => s.id === item.productId);
+      if (!stock) {
+        toast({
+          title: "Error",
+          description: `Product "${item.productName}" not found in stock`,
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      if (stock.stock < item.quantity) {
+        toast({
+          title: "Insufficient Stock",
+          description: `${stock.product} has only ${stock.stock} ${stock.unit} available, but you requested ${item.quantity}`,
+          variant: "destructive",
+        });
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const deductStock = async () => {
+    const { updateDoc, doc } = await import("firebase/firestore");
+    const { db } = await import("@/lib/firebase");
+
+    for (const item of formData.items) {
+      const stock = stockItems.find((s) => s.id === item.productId);
+      if (stock) {
+        const newStockQty = stock.stock - item.quantity;
+        const newStatus =
+          newStockQty === 0
+            ? "Out of Stock"
+            : newStockQty < 100
+              ? "Low Stock"
+              : "In Stock";
+
+        try {
+          await updateDoc(doc(db, "stock", item.productId), {
+            stock: newStockQty,
+            status: newStatus,
+            updatedAt: new Date(),
+          });
+          console.log(
+            `[Stock Updated] ${stock.product}: ${stock.stock} → ${newStockQty}`
+          );
+        } catch (err) {
+          console.error(`Failed to deduct stock for ${stock.product}:`, err);
+        }
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -175,19 +230,25 @@ export const OrderModal = ({
 
     try {
       if (editItem) {
-        await update(editItem.id, {
-          customer: formData.customer,
-          items: formData.items,
+        // Only allow status updates when editing
+        const success = await update(editItem.id, {
           status: formData.status,
-          total,
         });
-        toast({
-          title: "Success",
-          description: "Order updated successfully",
-        });
+        if (success) {
+          toast({
+            title: "Success",
+            description: "Order status updated successfully",
+          });
+          onOpenChange(false);
+        }
       } else {
+        // Check stock before creating order
+        if (!checkStockAvailability()) {
+          return;
+        }
+
         const id = await generateAutoNumber("orders", "ORD");
-        await add({
+        const docId = await add({
           id,
           customer: formData.customer,
           items: formData.items,
@@ -199,17 +260,24 @@ export const OrderModal = ({
             day: "numeric",
           }),
         } as Omit<Order, "id">);
-        toast({
-          title: "Success",
-          description: `Order created successfully (${id})`,
-        });
+
+        if (docId) {
+          // Deduct stock after order is created
+          await deductStock();
+          toast({
+            title: "Success",
+            description: `Order created successfully (${id}) and stock updated`,
+          });
+          onOpenChange(false);
+        }
       }
       onSuccess();
-      onOpenChange(false);
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to save order";
+      console.error("Order form error:", errorMsg);
       toast({
         title: "Error",
-        description: error || "Failed to save order",
+        description: error || errorMsg,
         variant: "destructive",
       });
     }
@@ -237,27 +305,27 @@ export const OrderModal = ({
               onChange={(e) =>
                 setFormData({ ...formData, customer: e.target.value })
               }
+              disabled={!!editItem}
             />
           </div>
 
-          {!editItem && (
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                <SelectTrigger id="status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Processing">Processing</SelectItem>
-                  <SelectItem value="Shipped">Shipped</SelectItem>
-                  <SelectItem value="Delivered">Delivered</SelectItem>
-                  <SelectItem value="Cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="status">Status</Label>
+            <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
+              <SelectTrigger id="status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Processing">Processing</SelectItem>
+                <SelectItem value="Shipped">Shipped</SelectItem>
+                <SelectItem value="Delivered">Delivered</SelectItem>
+                <SelectItem value="Cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          <div className="border rounded-lg p-4 space-y-3">
+          {!editItem && (
+            <div className="border rounded-lg p-4 space-y-3">
             <h4 className="font-semibold text-sm">Add Items</h4>
 
             <div className="space-y-2">
@@ -269,7 +337,7 @@ export const OrderModal = ({
                 <SelectContent>
                   {stockItems.map((stock) => (
                     <SelectItem key={stock.id} value={stock.id}>
-                      {stock.product} ({stock.status})
+                      {stock.product} ({stock.status}) - {stock.stock} {stock.unit} available
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -313,17 +381,18 @@ export const OrderModal = ({
 
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={handleAddItem}
               className="w-full"
             >
               Add to Order
             </Button>
-          </div>
+            </div>
+          )}
 
           {formData.items.length > 0 && (
             <div className="border rounded-lg p-4 space-y-3">
-              <h4 className="font-semibold text-sm">Order Items</h4>
+              <h4 className="font-semibold text-sm">Order Items {editItem && "(Read-only)"}</h4>
               <div className="space-y-2">
                 {formData.items.map((item) => (
                   <div
@@ -337,14 +406,16 @@ export const OrderModal = ({
                         {formatCurrency(item.quantity * item.price)}
                       </p>
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleRemoveItem(item.productId)}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
+                    {!editItem && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveItem(item.productId)}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -368,8 +439,10 @@ export const OrderModal = ({
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Saving...
                 </>
+              ) : editItem ? (
+                "Update Status"
               ) : (
-                editItem ? "Update Order" : "Create Order"
+                "Create Order"
               )}
             </Button>
           </DialogFooter>

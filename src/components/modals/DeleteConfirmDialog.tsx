@@ -32,18 +32,32 @@ export const DeleteConfirmDialog = ({
   const { remove, loading, error } = useFirestoreCRUD(collectionName);
 
   const handleDelete = async () => {
-    const success = await remove(itemId);
-    if (success) {
-      toast({
-        title: "Success",
-        description: `${itemName} deleted successfully`,
-      });
-      onSuccess();
-      onOpenChange(false);
-    } else {
+    try {
+      const success = await remove(itemId);
+      if (success) {
+        console.log(`[Delete] Successfully deleted ${collectionName}/${itemId}`);
+        toast({
+          title: "Success",
+          description: `${itemName} deleted successfully`,
+        });
+        // Wait a moment for Firestore listener to propagate
+        await new Promise(resolve => setTimeout(resolve, 300));
+        onSuccess();
+        onOpenChange(false);
+      } else {
+        console.error(`[Delete] Failed to delete ${collectionName}/${itemId}:`, error);
+        toast({
+          title: "Error",
+          description: error || "Failed to delete",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to delete";
+      console.error(`[Delete Error] ${collectionName}/${itemId}:`, errorMsg);
       toast({
         title: "Error",
-        description: error || "Failed to delete",
+        description: errorMsg,
         variant: "destructive",
       });
     }

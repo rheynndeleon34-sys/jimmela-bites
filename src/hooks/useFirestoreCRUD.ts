@@ -5,6 +5,7 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  setDoc,
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -28,14 +29,32 @@ export function useFirestoreCRUD<T extends { id?: string }>(
     setState({ loading: true, error: null, success: false });
     try {
       console.log(`[CRUD] Adding to ${collectionName}:`, data);
-      const docRef = await addDoc(collection(db, collectionName), {
-        ...data,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-      console.log(`[CRUD] Successfully added to ${collectionName}:`, docRef.id);
-      setState({ loading: false, error: null, success: true });
-      return docRef.id;
+      
+      // Check if data has an id field
+      const dataWithId = data as any;
+      const docId = dataWithId.id;
+
+      if (docId) {
+        // If ID provided, use setDoc to create with specific ID
+        await setDoc(doc(db, collectionName, docId), {
+          ...data,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        console.log(`[CRUD] Successfully added to ${collectionName}:`, docId);
+        setState({ loading: false, error: null, success: true });
+        return docId;
+      } else {
+        // Otherwise, use addDoc to auto-generate ID
+        const docRef = await addDoc(collection(db, collectionName), {
+          ...data,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        console.log(`[CRUD] Successfully added to ${collectionName}:`, docRef.id);
+        setState({ loading: false, error: null, success: true });
+        return docRef.id;
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to add";
       console.error(`[CRUD Error] Add to ${collectionName}:`, errorMessage);
