@@ -5,6 +5,7 @@ import { orderBy, limit } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { useMemo } from "react";
+import { startOfMonth, subMonths, format, isToday, parseISO } from "date-fns";
 
 interface OrderItem {
   productId: string;
@@ -22,39 +23,18 @@ interface Order {
   date: string;
 }
 
-interface StatsDoc {
+interface StockItem {
   id: string;
-  totalOrders: number;
-  inStock: number;
-  deliveriesToday: number;
-  revenueMonth: string;
-  orderChange: string;
-  stockChange: string;
-  deliveryChange: string;
-  revenueChange: string;
+  product: string;
+  stock: number;
+  status: string;
 }
 
-const fallbackStats: StatsDoc[] = [
-  {
-    id: "summary",
-    totalOrders: 1247,
-    inStock: 8432,
-    deliveriesToday: 38,
-    revenueMonth: "₱284,500",
-    orderChange: "+12.3%",
-    stockChange: "+3.1%",
-    deliveryChange: "+5.7%",
-    revenueChange: "+8.9%",
-  },
-];
-
-const fallbackOrders: Order[] = [
-  { id: "ORD-2847", customer: "Maria Santos", items: [{productId: "1", productName: "Pork Siomai", quantity: 50, price: 2500}, {productId: "2", productName: "Beef Siomai", quantity: 30, price: 1500}], total: 4000, status: "Processing", date: "Mar 23, 2026" },
-  { id: "ORD-2846", customer: "Aling Nena's Carinderia", items: [{productId: "3", productName: "Longganisa Original", quantity: 100, price: 8500}], total: 8500, status: "Shipped", date: "Mar 23, 2026" },
-  { id: "ORD-2845", customer: "JP Food Cart", items: [{productId: "4", productName: "Japanese Siomai", quantity: 80, price: 4000}, {productId: "5", productName: "Shark's Fin", quantity: 40, price: 2800}], total: 6800, status: "Delivered", date: "Mar 22, 2026" },
-  { id: "ORD-2844", customer: "Kusina ni Carlo", items: [{productId: "1", productName: "Pork Siomai", quantity: 200, price: 10000}], total: 10000, status: "Processing", date: "Mar 22, 2026" },
-  { id: "ORD-2843", customer: "Mang Ben's Ihawan", items: [{productId: "6", productName: "Longganisa Garlic", quantity: 150, price: 12750}], total: 12750, status: "Delivered", date: "Mar 21, 2026" },
-];
+interface Delivery {
+  id: string;
+  date: string;
+  status: string;
+}
 
 const statusStyles: Record<string, string> = {
   Processing: "bg-amber-50 text-amber-700",
@@ -63,45 +43,100 @@ const statusStyles: Record<string, string> = {
 };
 
 const AdminDashboard = () => {
-  const { data: statsData, loading: statsLoading } = useFirestoreCollection<StatsDoc>("dashboard_stats", []);
-  const { data: orders, loading: ordersLoading } = useFirestoreCollection<Order>("orders", [orderBy("date", "desc"), limit(5)]);
+  const { data: allOrders } = useFirestoreCollection<Order>("orders", [], []);
+  const { data: orders, loading: ordersLoading } = useFirestoreCollection<Order>("orders", [orderBy("date", "desc"), limit(5)], []);
+  const { data: stockItems } = useFirestoreCollection<StockItem>("stock", [], []);
+  const { data: deliveries } = useFirestoreCollection<Delivery>("deliveries", [], []);
   const { toast } = useToast();
 
-  const s = statsData[0] || fallbackStats[0];
+  const computedStats = useMemo(() => {
+    const now = new Date();
+    const thisMonthStart = startOfMonth(now);
+    const lastMonthStart = startOfMonth(subMonths(now, 1));
+
+    // Total Orders
+    const totalOrders = allOrders.length;
+
+    // In Stock — sum of all stock quantities
+    const inStock = stockItems.reduce((sum, item) => sum + (item.stock || 0), 0);
+
+    // Deliveries Today
+    const deliveriesToday = deliveries.filter((d) => {
+      try {
+        return isToday(parseISO(d.date));
+      } catch {
+        return false;
+      }
+    }).length;
+
+    // Revenue this month
+    const thisMonthOrders = allOrders.filter((o) => {
+      try {
+        const d = parseISO(o.date);
+        return d >= thisMonthStart;
+      } catch {
+        return false;
+      }
+    });
+    const revenueMonth = thisMonthOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+
+    // Revenue last month for comparison
+    const lastMonthOrders = allOrders.filter((o) => {
+      try {
+        const d = parseISO(o.date);
+        return d >= lastMonthStart && d < thisMonthStart;
+      } catch {
+        return false;
+      }
+    });
+    const revenueLast = lastMonthOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+
+    // Percentage changes
+    const calcChange = (current: number, previous: number) => {
+      if (previous === 0) return current > 0 ? "+100%" : "0%";
+      const pct = ((current - previous) / previous) * 100;
+      return `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
+    };
+
+    const orderChange = calcChange(thisMonthOrders.length, lastMonthOrders.length);
+    const revenueChange = calcChange(revenueMonth, revenueLast);
+
+    return { totalOrders, inStock, deliveriesToday, revenueMonth, orderChange, revenueChange };
+  }, [allOrders, stockItems, deliveries]);
 
   const stats = [
     {
       label: "Total Orders",
-      value: s.totalOrders.toLocaleString(),
+      value: computedStats.totalOrders.toLocaleString(),
       icon: ShoppingCart,
-      change: s.orderChange,
+      change: computedStats.orderChange,
       gradient: "from-blue-500 to-blue-600",
       bgGradient: "from-blue-50 to-blue-100",
       textColor: "text-blue-700",
     },
     {
       label: "In Stock",
-      value: s.inStock.toLocaleString(),
+      value: computedStats.inStock.toLocaleString(),
       icon: Package,
-      change: s.stockChange,
+      change: "—",
       gradient: "from-emerald-500 to-emerald-600",
       bgGradient: "from-emerald-50 to-emerald-100",
       textColor: "text-emerald-700",
     },
     {
       label: "Deliveries Today",
-      value: String(s.deliveriesToday),
+      value: String(computedStats.deliveriesToday),
       icon: Truck,
-      change: s.deliveryChange,
+      change: "—",
       gradient: "from-purple-500 to-purple-600",
       bgGradient: "from-purple-50 to-purple-100",
       textColor: "text-purple-700",
     },
     {
       label: "Revenue (Month)",
-      value: s.revenueMonth,
+      value: `₱${computedStats.revenueMonth.toLocaleString()}`,
       icon: TrendingUp,
-      change: s.revenueChange,
+      change: computedStats.revenueChange,
       gradient: "from-amber-500 to-amber-600",
       bgGradient: "from-amber-50 to-amber-100",
       textColor: "text-amber-700",
@@ -145,20 +180,24 @@ const AdminDashboard = () => {
                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center shadow-lg`}>
                   <stat.icon className="w-6 h-6 text-white" />
                 </div>
-                <div
-                  className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${
-                    isPositiveChange(stat.change)
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-red-100 text-red-700"
-                  }`}
-                >
-                  {isPositiveChange(stat.change) ? (
-                    <ArrowUpRight className="w-3 h-3" />
-                  ) : (
-                    <ArrowDownRight className="w-3 h-3" />
-                  )}
-                  {stat.change}
-                </div>
+                {stat.change !== "—" ? (
+                  <div
+                    className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${
+                      isPositiveChange(stat.change)
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-red-100 text-red-700"
+                    }`}
+                  >
+                    {isPositiveChange(stat.change) ? (
+                      <ArrowUpRight className="w-3 h-3" />
+                    ) : (
+                      <ArrowDownRight className="w-3 h-3" />
+                    )}
+                    {stat.change}
+                  </div>
+                ) : (
+                  <span className="text-xs text-muted-foreground px-2 py-1">Live</span>
+                )}
               </div>
 
               <p className="text-3xl font-bold text-foreground font-display tabular-nums mb-1">
