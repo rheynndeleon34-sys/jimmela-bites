@@ -1,4 +1,4 @@
-# 🍜 Jimmela Food Products — Food Delivery & Franchise Platform
+# 🍜 Jimmela Food Products — Frozen Foods/Franchise Platform & Tracking System
 
 ## 🌟 Live Demo
 
