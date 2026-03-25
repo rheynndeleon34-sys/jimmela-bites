@@ -180,20 +180,24 @@ const AdminDashboard = () => {
                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center shadow-lg`}>
                   <stat.icon className="w-6 h-6 text-white" />
                 </div>
-                <div
-                  className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${
-                    isPositiveChange(stat.change)
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-red-100 text-red-700"
-                  }`}
-                >
-                  {isPositiveChange(stat.change) ? (
-                    <ArrowUpRight className="w-3 h-3" />
-                  ) : (
-                    <ArrowDownRight className="w-3 h-3" />
-                  )}
-                  {stat.change}
-                </div>
+                {stat.change !== "—" ? (
+                  <div
+                    className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${
+                      isPositiveChange(stat.change)
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-red-100 text-red-700"
+                    }`}
+                  >
+                    {isPositiveChange(stat.change) ? (
+                      <ArrowUpRight className="w-3 h-3" />
+                    ) : (
+                      <ArrowDownRight className="w-3 h-3" />
+                    )}
+                    {stat.change}
+                  </div>
+                ) : (
+                  <span className="text-xs text-muted-foreground px-2 py-1">Live</span>
+                )}
               </div>
 
               <p className="text-3xl font-bold text-foreground font-display tabular-nums mb-1">
