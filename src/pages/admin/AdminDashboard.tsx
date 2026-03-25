@@ -4,55 +4,56 @@ import { LowStockAlerts } from "@/components/admin/LowStockAlerts";
 import { orderBy, limit } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { useEffect, useState } from "react";
-import React from 'react'; // Moved React import to top
+import { useMemo } from "react";
 
-// Define interfaces with all optional fields
 interface OrderItem {
-  productId?: string;
-  productName?: string;
-  quantity?: number;
-  price?: number;
+  productId: string;
+  productName: string;
+  quantity: number;
+  price: number;
 }
 
 interface Order {
   id: string;
-  customer?: string;
-  items?: OrderItem[];
-  total?: number;
-  status?: string;
-  date?: string;
+  customer: string;
+  items: OrderItem[];
+  total: number;
+  status: string;
+  date: string;
 }
 
 interface StatsDoc {
   id: string;
-  totalOrders?: number;
-  inStock?: number;
-  deliveriesToday?: number;
-  revenueMonth?: string;
-  orderChange?: string;
-  stockChange?: string;
-  deliveryChange?: string;
-  revenueChange?: string;
+  totalOrders: number;
+  inStock: number;
+  deliveriesToday: number;
+  revenueMonth: string;
+  orderChange: string;
+  stockChange: string;
+  deliveryChange: string;
+  revenueChange: string;
 }
 
-// Fallback data
-const fallbackStats: StatsDoc = {
-  id: "summary",
-  totalOrders: 1247,
-  inStock: 8432,
-  deliveriesToday: 38,
-  revenueMonth: "₱284,500",
-  orderChange: "+12.3%",
-  stockChange: "+3.1%",
-  deliveryChange: "+5.7%",
-  revenueChange: "+8.9%",
-};
+const fallbackStats: StatsDoc[] = [
+  {
+    id: "summary",
+    totalOrders: 1247,
+    inStock: 8432,
+    deliveriesToday: 38,
+    revenueMonth: "₱284,500",
+    orderChange: "+12.3%",
+    stockChange: "+3.1%",
+    deliveryChange: "+5.7%",
+    revenueChange: "+8.9%",
+  },
+];
 
 const fallbackOrders: Order[] = [
-  { id: "ORD-2847", customer: "Maria Santos", items: [{ productName: "Pork Siomai" }], total: 4000, status: "Processing", date: "Mar 23, 2026" },
-  { id: "ORD-2846", customer: "Aling Nena's Carinderia", items: [{ productName: "Longganisa Original" }], total: 8500, status: "Shipped", date: "Mar 23, 2026" },
-  { id: "ORD-2845", customer: "JP Food Cart", items: [{ productName: "Japanese Siomai" }], total: 6800, status: "Delivered", date: "Mar 22, 2026" },
+  { id: "ORD-2847", customer: "Maria Santos", items: [{productId: "1", productName: "Pork Siomai", quantity: 50, price: 2500}, {productId: "2", productName: "Beef Siomai", quantity: 30, price: 1500}], total: 4000, status: "Processing", date: "Mar 23, 2026" },
+  { id: "ORD-2846", customer: "Aling Nena's Carinderia", items: [{productId: "3", productName: "Longganisa Original", quantity: 100, price: 8500}], total: 8500, status: "Shipped", date: "Mar 23, 2026" },
+  { id: "ORD-2845", customer: "JP Food Cart", items: [{productId: "4", productName: "Japanese Siomai", quantity: 80, price: 4000}, {productId: "5", productName: "Shark's Fin", quantity: 40, price: 2800}], total: 6800, status: "Delivered", date: "Mar 22, 2026" },
+  { id: "ORD-2844", customer: "Kusina ni Carlo", items: [{productId: "1", productName: "Pork Siomai", quantity: 200, price: 10000}], total: 10000, status: "Processing", date: "Mar 22, 2026" },
+  { id: "ORD-2843", customer: "Mang Ben's Ihawan", items: [{productId: "6", productName: "Longganisa Garlic", quantity: 150, price: 12750}], total: 12750, status: "Delivered", date: "Mar 21, 2026" },
 ];
 
 const statusStyles: Record<string, string> = {
@@ -62,75 +63,56 @@ const statusStyles: Record<string, string> = {
 };
 
 const AdminDashboard = () => {
+  const { data: statsData, loading: statsLoading } = useFirestoreCollection<StatsDoc>("dashboard_stats", []);
+  const { data: orders, loading: ordersLoading } = useFirestoreCollection<Order>("orders", [orderBy("date", "desc"), limit(5)]);
   const { toast } = useToast();
-  const [mounted, setMounted] = useState(false);
-  
-  // Use fallback data immediately
-  const { data: statsData, loading: statsLoading, error: statsError } = 
-    useFirestoreCollection<StatsDoc>("dashboard_stats", [], [fallbackStats]);
-  const { data: ordersData, loading: ordersLoading, error: ordersError } = 
-    useFirestoreCollection<Order>("orders", [orderBy("date", "desc"), limit(5)], fallbackOrders);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // SAFE: Always ensure we have valid data
-  const safeStats = (statsData && statsData[0]) || fallbackStats;
-  const safeOrders = (() => {
-    if (ordersData && Array.isArray(ordersData) && ordersData.length > 0) {
-      return ordersData;
-    }
-    return fallbackOrders;
-  })();
+  const s = statsData[0] || fallbackStats[0];
 
   const stats = [
     {
       label: "Total Orders",
-      value: safeStats.totalOrders?.toLocaleString() || "0",
+      value: s.totalOrders.toLocaleString(),
       icon: ShoppingCart,
-      change: safeStats.orderChange || "0%",
+      change: s.orderChange,
       gradient: "from-blue-500 to-blue-600",
       bgGradient: "from-blue-50 to-blue-100",
+      textColor: "text-blue-700",
     },
     {
       label: "In Stock",
-      value: safeStats.inStock?.toLocaleString() || "0",
+      value: s.inStock.toLocaleString(),
       icon: Package,
-      change: safeStats.stockChange || "0%",
+      change: s.stockChange,
       gradient: "from-emerald-500 to-emerald-600",
       bgGradient: "from-emerald-50 to-emerald-100",
+      textColor: "text-emerald-700",
     },
     {
       label: "Deliveries Today",
-      value: String(safeStats.deliveriesToday || 0),
+      value: String(s.deliveriesToday),
       icon: Truck,
-      change: safeStats.deliveryChange || "0%",
+      change: s.deliveryChange,
       gradient: "from-purple-500 to-purple-600",
       bgGradient: "from-purple-50 to-purple-100",
+      textColor: "text-purple-700",
     },
     {
       label: "Revenue (Month)",
-      value: safeStats.revenueMonth || "₱0",
+      value: s.revenueMonth,
       icon: TrendingUp,
-      change: safeStats.revenueChange || "0%",
+      change: s.revenueChange,
       gradient: "from-amber-500 to-amber-600",
       bgGradient: "from-amber-50 to-amber-100",
+      textColor: "text-amber-700",
     },
   ];
 
-  const isPositiveChange = (change: string) => {
-    return change && change.startsWith("+");
-  };
-
-  // Don't render until mounted to prevent hydration issues
-  if (!mounted) {
-    return null;
-  }
+  const isPositiveChange = (change: string) => change.startsWith("+");
 
   return (
     <div className="space-y-8">
-      {/* Header */}
+      {/* Header Section */}
       <div className="mb-8">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
           <div>
@@ -143,21 +125,21 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* Low Stock Alerts - COMMENTED OUT TO TEST */}
-      {/* <LowStockAlerts /> */}
-      
-      {/* Optional: Add a simple placeholder to see if this section works */}
-      <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-green-700">
-        ✅ LowStockAlerts component is temporarily disabled for testing
-      </div>
+      {/* Low Stock Alerts */}
+      <LowStockAlerts />
 
-      {/* Stats Cards */}
+      {/* Stats Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-        {stats.map((stat, index) => (
+        {stats.map((stat) => (
           <div
-            key={index}
-            className="relative overflow-hidden rounded-2xl p-6 border border-border shadow-sm hover:shadow-md transition-all duration-300 bg-card group"
+            key={stat.label}
+            className={`relative overflow-hidden rounded-2xl p-6 border border-border shadow-sm hover:shadow-md transition-all duration-300 bg-card group`}
           >
+            {/* Gradient Background Accent */}
+            <div
+              className={`absolute inset-0 bg-gradient-to-br ${stat.bgGradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
+            />
+
             <div className="relative z-10">
               <div className="flex items-center justify-between mb-4">
                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center shadow-lg`}>
@@ -178,6 +160,7 @@ const AdminDashboard = () => {
                   {stat.change}
                 </div>
               </div>
+
               <p className="text-3xl font-bold text-foreground font-display tabular-nums mb-1">
                 {stat.value}
               </p>
@@ -187,7 +170,7 @@ const AdminDashboard = () => {
         ))}
       </div>
 
-      {/* Recent Orders */}
+      {/* Recent Orders Section */}
       <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
         <div className="px-6 py-5 border-b border-border flex items-center justify-between bg-gradient-to-r from-slate-50 to-transparent">
           <div>
@@ -197,69 +180,113 @@ const AdminDashboard = () => {
           {ordersLoading && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left bg-muted/40">
-                <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Order ID</th>
-                <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Customer</th>
-                <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">Items</th>
-                <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Amount</th>
-                <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Date</th>
-                <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider text-right">Actions</th>
-               </tr>
-            </thead>
-            <tbody>
-              {safeOrders.map((order, idx) => (
-                <tr key={order.id || idx} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors duration-200">
-                  <td className="px-6 py-4">
-                    <span className="font-semibold text-foreground">{order.id || "N/A"}</span>
-                  </td>
-                  <td className="px-6 py-4 text-foreground font-medium">
-                    {order.customer || "Unknown Customer"}
-                  </td>
-                  <td className="px-6 py-4 text-muted-foreground hidden md:table-cell">
-                    <span className="truncate block text-xs">
-                      {order.items && Array.isArray(order.items) && order.items.length > 0
-                        ? order.items.map(item => item.productName || "Product").join(", ")
-                        : "No items"}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="font-semibold text-foreground">
-                      ₱{(order.total || 0).toLocaleString()}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold ${
-                      statusStyles[order.status || ""] || "bg-muted text-muted-foreground"
-                    }`}>
-                      <span className="w-2 h-2 rounded-full mr-2 bg-current opacity-60"></span>
-                      {order.status || "Pending"}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-muted-foreground hidden sm:table-cell text-xs">
-                    {order.date || "N/A"}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-blue-100">
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-amber-100">
-                        <Edit2 className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-red-100">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </td>
+        {orders.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <ShoppingCart className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-muted-foreground">No orders yet</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left bg-muted/40">
+                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Order ID
+                  </th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Customer
+                  </th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">
+                    Items
+                  </th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Amount
+                  </th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">
+                    Date
+                  </th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider text-right">
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {orders.map((o, idx) => (
+                  <tr
+                    key={o.id}
+                    className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors duration-200"
+                  >
+                    <td className="px-6 py-4">
+                      <span className="font-semibold text-foreground">{o.id}</span>
+                    </td>
+                    <td className="px-6 py-4 text-foreground font-medium">{o.customer}</td>
+                    <td className="px-6 py-4 text-muted-foreground hidden md:table-cell max-w-[250px]">
+                      <span className="truncate block text-xs">
+                        {o.items.map((item) => item.productName).join(", ")}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-semibold text-foreground">
+                        ₱{o.total.toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold ${
+                          statusStyles[o.status] || "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full mr-2 bg-current opacity-60"></span>
+                        {o.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-muted-foreground hidden sm:table-cell text-xs">
+                      {o.date}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 hover:bg-blue-100 hover:text-blue-600"
+                          title="View details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 hover:bg-amber-100 hover:text-amber-600"
+                          title="Edit order"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 hover:bg-red-100 hover:text-red-600"
+                          title="Delete order"
+                          onClick={() =>
+                            toast({
+                              title: "Delete Order",
+                              description: `Are you sure you want to delete ${o.id}? This action cannot be undone.`,
+                              variant: "destructive",
+                            })
+                          }
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
