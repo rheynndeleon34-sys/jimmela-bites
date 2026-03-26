@@ -36,7 +36,7 @@ const Navbar = () => {
             className="h-10 w-10 lg:h-12 lg:w-12 rounded-full object-cover ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all duration-300"
           />
           <span className="font-display text-lg lg:text-xl font-bold text-foreground tracking-tight">
-            Jimmela<span className="text-primary"> Food Products</span>
+            Rheynn<span className="text-primary"> Food Products</span>
           </span>
         </a>
 
