@@ -23,12 +23,16 @@ const AdminLogin = () => {
       navigate("/admin/dashboard");
     } catch (err: any) {
       const code = err?.code;
+      const msg = err?.message || "";
+      console.error("[Auth Error]", code, msg);
       if (code === "auth/user-not-found" || code === "auth/wrong-password" || code === "auth/invalid-credential") {
         setError("Invalid email or password.");
       } else if (code === "auth/too-many-requests") {
         setError("Too many attempts. Please try again later.");
+      } else if (code === "auth/invalid-email") {
+        setError("Invalid email format.");
       } else {
-        setError("Login failed. Please try again.");
+        setError(`Login failed: ${code || msg || "Unknown error"}`);
       }
     } finally {
       setLoading(false);
