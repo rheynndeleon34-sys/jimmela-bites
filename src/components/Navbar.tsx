@@ -2,8 +2,6 @@ import { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
 import logo from "@/assets/jimmela_logo.jpg";
 
-const broken =
-
 const navLinks = [
   { label: "Home", href: "#home" },
   { label: "Products", href: "#products" },
