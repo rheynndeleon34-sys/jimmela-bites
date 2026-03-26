@@ -335,7 +335,7 @@ export const OrderModal = ({
                   <SelectValue placeholder="Choose a product..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {stockItems.map((stock) => (
+                  {stockItems.filter((stock) => stock.id && stock.id.trim() !== "").map((stock) => (
                     <SelectItem key={stock.id} value={stock.id}>
                       {stock.product} ({stock.status}) - {stock.stock} {stock.unit} available
                     </SelectItem>
