@@ -35,7 +35,7 @@ export function useFirestoreCollection<T>(
       const unsub = onSnapshot(
         q,
         (snap) => {
-          const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as T));
+          const docs = snap.docs.map((d) => ({ ...d.data(), id: d.id } as T));
           console.log(
             `[Firestore] ${collectionName} updated:`,
             docs.length,
