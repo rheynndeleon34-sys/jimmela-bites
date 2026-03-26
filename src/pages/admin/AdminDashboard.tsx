@@ -1,10 +1,11 @@
-import { Package, ShoppingCart, Truck, TrendingUp, Loader2, ArrowUpRight, ArrowDownRight, Eye, Edit2, Trash2 } from "lucide-react";
+import { Package, ShoppingCart, Truck, TrendingUp, Loader2, ArrowUpRight, Eye, Edit2, Trash2 } from "lucide-react";
 import { useFirestoreCollection } from "@/hooks/useFirestore";
 import { LowStockAlerts } from "@/components/admin/LowStockAlerts";
 import { orderBy, limit } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { useMemo } from "react";
+import { isToday, parseISO, isThisMonth } from "date-fns";
 
 interface OrderItem {
   productId: string;
@@ -20,95 +21,121 @@ interface Order {
   total: number;
   status: string;
   date: string;
+  createdAt?: any;
 }
 
-interface StatsDoc {
+interface StockItem {
   id: string;
-  totalOrders: number;
-  inStock: number;
-  deliveriesToday: number;
-  revenueMonth: string;
-  orderChange: string;
-  stockChange: string;
-  deliveryChange: string;
-  revenueChange: string;
+  product: string;
+  stock: number;
+  unit: string;
+  status: string;
 }
 
-const fallbackStats: StatsDoc[] = [
-  {
-    id: "summary",
-    totalOrders: 1247,
-    inStock: 8432,
-    deliveriesToday: 38,
-    revenueMonth: "₱284,500",
-    orderChange: "+12.3%",
-    stockChange: "+3.1%",
-    deliveryChange: "+5.7%",
-    revenueChange: "+8.9%",
-  },
-];
-
-const fallbackOrders: Order[] = [
-  { id: "ORD-2847", customer: "Maria Santos", items: [{productId: "1", productName: "Pork Siomai", quantity: 50, price: 2500}, {productId: "2", productName: "Beef Siomai", quantity: 30, price: 1500}], total: 4000, status: "Processing", date: "Mar 23, 2026" },
-  { id: "ORD-2846", customer: "Aling Nena's Carinderia", items: [{productId: "3", productName: "Longganisa Original", quantity: 100, price: 8500}], total: 8500, status: "Shipped", date: "Mar 23, 2026" },
-  { id: "ORD-2845", customer: "JP Food Cart", items: [{productId: "4", productName: "Japanese Siomai", quantity: 80, price: 4000}, {productId: "5", productName: "Shark's Fin", quantity: 40, price: 2800}], total: 6800, status: "Delivered", date: "Mar 22, 2026" },
-  { id: "ORD-2844", customer: "Kusina ni Carlo", items: [{productId: "1", productName: "Pork Siomai", quantity: 200, price: 10000}], total: 10000, status: "Processing", date: "Mar 22, 2026" },
-  { id: "ORD-2843", customer: "Mang Ben's Ihawan", items: [{productId: "6", productName: "Longganisa Garlic", quantity: 150, price: 12750}], total: 12750, status: "Delivered", date: "Mar 21, 2026" },
-];
+interface Delivery {
+  id: string;
+  date: string;
+  status: string;
+}
 
 const statusStyles: Record<string, string> = {
   Processing: "bg-amber-50 text-amber-700",
   Shipped: "bg-blue-50 text-blue-700",
   Delivered: "bg-emerald-50 text-emerald-700",
+  Cancelled: "bg-red-50 text-red-700",
 };
 
 const AdminDashboard = () => {
-  const { data: statsData, loading: statsLoading } = useFirestoreCollection<StatsDoc>("dashboard_stats", []);
-  const { data: orders, loading: ordersLoading } = useFirestoreCollection<Order>("orders", [orderBy("date", "desc"), limit(5)]);
+  const { data: allOrders, loading: ordersLoading } = useFirestoreCollection<Order>("orders", []);
+  const { data: stockItems, loading: stockLoading } = useFirestoreCollection<StockItem>("stock", []);
+  const { data: deliveries, loading: deliveriesLoading } = useFirestoreCollection<Delivery>("deliveries", []);
   const { toast } = useToast();
 
-  const s = statsData[0] || fallbackStats[0];
+  const recentOrders = useMemo(() => {
+    return [...allOrders]
+      .sort((a, b) => {
+        // Sort by date descending
+        const dateA = new Date(a.date || "").getTime() || 0;
+        const dateB = new Date(b.date || "").getTime() || 0;
+        return dateB - dateA;
+      })
+      .slice(0, 5);
+  }, [allOrders]);
+
+  const computedStats = useMemo(() => {
+    const totalOrders = allOrders.length;
+
+    const totalStock = stockItems.reduce((sum, item) => sum + (Number(item.stock) || 0), 0);
+
+    const todayDeliveries = deliveries.filter((d) => {
+      try {
+        if (!d.date) return false;
+        const deliveryDate = new Date(d.date);
+        const today = new Date();
+        return (
+          deliveryDate.getFullYear() === today.getFullYear() &&
+          deliveryDate.getMonth() === today.getMonth() &&
+          deliveryDate.getDate() === today.getDate()
+        );
+      } catch {
+        return false;
+      }
+    }).length;
+
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const monthRevenue = allOrders.reduce((sum, order) => {
+      try {
+        const orderDate = new Date(order.date || "");
+        if (orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear) {
+          return sum + (Number(order.total) || 0);
+        }
+      } catch {}
+      return sum;
+    }, 0);
+
+    return {
+      totalOrders,
+      totalStock,
+      todayDeliveries,
+      monthRevenue,
+    };
+  }, [allOrders, stockItems, deliveries]);
+
+  const anyLoading = ordersLoading || stockLoading || deliveriesLoading;
 
   const stats = [
     {
       label: "Total Orders",
-      value: s.totalOrders.toLocaleString(),
+      value: computedStats.totalOrders.toLocaleString(),
       icon: ShoppingCart,
-      change: s.orderChange,
       gradient: "from-blue-500 to-blue-600",
       bgGradient: "from-blue-50 to-blue-100",
-      textColor: "text-blue-700",
     },
     {
       label: "In Stock",
-      value: s.inStock.toLocaleString(),
+      value: computedStats.totalStock.toLocaleString(),
       icon: Package,
-      change: s.stockChange,
       gradient: "from-emerald-500 to-emerald-600",
       bgGradient: "from-emerald-50 to-emerald-100",
-      textColor: "text-emerald-700",
     },
     {
       label: "Deliveries Today",
-      value: String(s.deliveriesToday),
+      value: String(computedStats.todayDeliveries),
       icon: Truck,
-      change: s.deliveryChange,
       gradient: "from-purple-500 to-purple-600",
       bgGradient: "from-purple-50 to-purple-100",
-      textColor: "text-purple-700",
     },
     {
       label: "Revenue (Month)",
-      value: s.revenueMonth,
+      value: `₱${computedStats.monthRevenue.toLocaleString()}`,
       icon: TrendingUp,
-      change: s.revenueChange,
       gradient: "from-amber-500 to-amber-600",
       bgGradient: "from-amber-50 to-amber-100",
-      textColor: "text-amber-700",
     },
   ];
-
-  const isPositiveChange = (change: string) => change.startsWith("+");
 
   return (
     <div className="space-y-8">
@@ -119,7 +146,8 @@ const AdminDashboard = () => {
             <h1 className="text-3xl font-bold text-foreground mb-2">Welcome back!</h1>
             <p className="text-muted-foreground">Here's what's happening with your business today</p>
           </div>
-          <div className="mt-4 md:mt-0 text-sm text-muted-foreground">
+          <div className="mt-4 md:mt-0 flex items-center gap-2 text-sm text-muted-foreground">
+            {anyLoading && <Loader2 className="w-4 h-4 animate-spin" />}
             Last updated: {new Date().toLocaleDateString()}
           </div>
         </div>
@@ -133,36 +161,23 @@ const AdminDashboard = () => {
         {stats.map((stat) => (
           <div
             key={stat.label}
-            className={`relative overflow-hidden rounded-2xl p-6 border border-border shadow-sm hover:shadow-md transition-all duration-300 bg-card group`}
+            className="relative overflow-hidden rounded-2xl p-6 border border-border shadow-sm hover:shadow-md transition-all duration-300 bg-card group"
           >
-            {/* Gradient Background Accent */}
             <div
               className={`absolute inset-0 bg-gradient-to-br ${stat.bgGradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
             />
-
             <div className="relative z-10">
               <div className="flex items-center justify-between mb-4">
                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center shadow-lg`}>
                   <stat.icon className="w-6 h-6 text-white" />
                 </div>
-                <div
-                  className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${
-                    isPositiveChange(stat.change)
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-red-100 text-red-700"
-                  }`}
-                >
-                  {isPositiveChange(stat.change) ? (
-                    <ArrowUpRight className="w-3 h-3" />
-                  ) : (
-                    <ArrowDownRight className="w-3 h-3" />
-                  )}
-                  {stat.change}
+                <div className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full bg-blue-100 text-blue-700">
+                  <ArrowUpRight className="w-3 h-3" />
+                  Live
                 </div>
               </div>
-
               <p className="text-3xl font-bold text-foreground font-display tabular-nums mb-1">
-                {stat.value}
+                {anyLoading ? "..." : stat.value}
               </p>
               <p className="text-sm text-muted-foreground font-medium">{stat.label}</p>
             </div>
@@ -180,7 +195,7 @@ const AdminDashboard = () => {
           {ordersLoading && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
         </div>
 
-        {orders.length === 0 ? (
+        {!ordersLoading && recentOrders.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <ShoppingCart className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-muted-foreground">No orders yet</p>
@@ -190,47 +205,29 @@ const AdminDashboard = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left bg-muted/40">
-                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Order ID
-                  </th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Customer
-                  </th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">
-                    Items
-                  </th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Amount
-                  </th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">
-                    Date
-                  </th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider text-right">
-                    Actions
-                  </th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Order ID</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Customer</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">Items</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Amount</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden sm:table-cell">Date</th>
                 </tr>
               </thead>
               <tbody>
-                {orders.map((o, idx) => (
-                  <tr
-                    key={o.id}
-                    className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors duration-200"
-                  >
+                {recentOrders.map((o) => (
+                  <tr key={o.id} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors duration-200">
                     <td className="px-6 py-4">
                       <span className="font-semibold text-foreground">{o.id}</span>
                     </td>
-                    <td className="px-6 py-4 text-foreground font-medium">{o.customer}</td>
+                    <td className="px-6 py-4 text-foreground font-medium">{o.customer || "—"}</td>
                     <td className="px-6 py-4 text-muted-foreground hidden md:table-cell max-w-[250px]">
                       <span className="truncate block text-xs">
-                        {o.items.map((item) => item.productName).join(", ")}
+                        {Array.isArray(o.items) ? o.items.map((item) => item.productName).join(", ") : "—"}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       <span className="font-semibold text-foreground">
-                        ₱{o.total.toLocaleString()}
+                        ₱{(Number(o.total) || 0).toLocaleString()}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -240,46 +237,11 @@ const AdminDashboard = () => {
                         }`}
                       >
                         <span className="w-2 h-2 rounded-full mr-2 bg-current opacity-60"></span>
-                        {o.status}
+                        {o.status || "Unknown"}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-muted-foreground hidden sm:table-cell text-xs">
-                      {o.date}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 hover:bg-blue-100 hover:text-blue-600"
-                          title="View details"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 hover:bg-amber-100 hover:text-amber-600"
-                          title="Edit order"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 hover:bg-red-100 hover:text-red-600"
-                          title="Delete order"
-                          onClick={() =>
-                            toast({
-                              title: "Delete Order",
-                              description: `Are you sure you want to delete ${o.id}? This action cannot be undone.`,
-                              variant: "destructive",
-                            })
-                          }
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      {o.date || "—"}
                     </td>
                   </tr>
                 ))}
